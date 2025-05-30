@@ -75,8 +75,12 @@ inputs:
     description: "MacOS Application Certificate id"
     required: false
     default: ''
-  sign-macos-apple-password:
-    description: "MacOS Apple password"
+  sign-macos-apple-id:
+    description: "MacOS Apple ID for notarization"
+    required: false
+    default: ''
+  sign-macos-app-specific-password:
+    description: "MacOS app-specific password for notarization"
     required: false
     default: ''
   sign-macos-app-cert:
@@ -186,10 +190,6 @@ runs:
       if: inputs.build == 'true' && inputs.wails-dev-build == 'false'
       run: go install github.com/wailsapp/wails/v2/cmd/wails@${{inputs.wails-version}}
       shell: bash
-    - name: Install macOS Wails deps
-      if: runner.os == 'macOS'
-      run: brew install mitchellh/gon/gon
-      shell: bash
     # Building step
     - name: Build App
       if: inputs.build == 'true'
@@ -213,14 +213,14 @@ runs:
       if: runner.os == 'macOS' && inputs.sign != 'false' && startsWith(github.ref, 'refs/tags/')
       uses: Apple-Actions/import-codesign-certs@v1
       with:
-        keychain-password: ${{ inputs.sign-macos-apple-password }}
+        keychain-password: ${{ inputs.sign-macos-app-specific-password }}
         p12-file-base64: ${{ inputs.sign-macos-app-cert }}
         p12-password: ${{ inputs.sign-macos-app-cert-password }}
     - name: Import Code-Signing Certificates for macOS Installer
       if: runner.os == 'macOS' && inputs.sign != 'false' && startsWith(github.ref, 'refs/tags/')
       uses: Apple-Actions/import-codesign-certs@v1
       with:
-        keychain-password: ${{ inputs.sign-macos-apple-password }}
+        keychain-password: ${{ inputs.sign-macos-app-specific-password }}
         p12-file-base64: ${{ inputs.sign-macos-installer-cert }}
         p12-password: ${{ inputs.sign-macos-installer-cert-password }}
         create-keychain: false
@@ -228,11 +228,9 @@ runs:
       if: runner.os == 'macOS' && inputs.sign != 'false' && startsWith(github.ref, 'refs/tags/')
       shell: bash
       working-directory: ${{ inputs.app-working-directory }}
-      env:
-        APPLE_PASSWORD: ${{ inputs.sign-macos-apple-password }}
       run: |
         echo "Signing Package"
-        gon -log-level=info ./build/darwin/gon-sign.json
+        codesign --force --options runtime --deep --sign "${{ inputs.sign-macos-app-id }}" build/bin/${{inputs.build-name}}.app
     - name: Build .app zip file
       if: runner.os == 'macOS'
       working-directory: ${{ inputs.app-working-directory }}
@@ -244,21 +242,32 @@ runs:
       shell: bash
       working-directory: ${{ inputs.app-working-directory }}
       run: |
-        productbuild --sign '${{inputs.sign-macos-installer-id}}' --component ${{ inputs.app-working-directory }}/build/bin/${{inputs.build-name}}.app /Applications ${{ inputs.app-working-directory }}/build/bin/${{inputs.build-name}}.pkg
+        productbuild --component ${{ inputs.app-working-directory }}/build/bin/${{inputs.build-name}}.app /Applications ${{ inputs.app-working-directory }}/build/bin/${{inputs.build-name}}.pkg
+        codesign --force --sign "${{ inputs.sign-macos-installer-id }}" ${{ inputs.app-working-directory }}/build/bin/${{inputs.build-name}}.pkg
     - name: Building Installer
       if: runner.os == 'macOS' && inputs.sign-macos-installer-id == '' && startsWith(github.ref, 'refs/tags/')
       shell: bash
       working-directory: ${{ inputs.app-working-directory }}
       run: |
         productbuild --component ${{ inputs.app-working-directory }}/build/bin/${{inputs.build-name}}.app /Applications ${{ inputs.app-working-directory }}/build/bin/${{inputs.build-name}}.pkg
-    - name: Notarising Installer and zip
+    - name: Notarize macOS app and installer
       if: runner.os == 'macOS' && inputs.sign != 'false' && startsWith(github.ref, 'refs/tags/')
       shell: bash
       working-directory: ${{ inputs.app-working-directory }}
-      env:
-        APPLE_PASSWORD: ${{ inputs.sign-macos-apple-password }}
       run: |
-        gon -log-level=info ${{ inputs.app-working-directory }}/build/darwin/gon-notarize.json
+        echo "Notarizing app bundle"
+        xcrun notarytool submit build/bin/${{inputs.build-name}}.app.zip --apple-id "${{ inputs.sign-macos-apple-id }}" --password "${{ inputs.sign-macos-app-specific-password }}" --team-id "${{ inputs.sign-macos-app-id }}" --wait
+        
+        echo "Stapling app bundle"
+        xcrun stapler staple build/bin/${{inputs.build-name}}.app
+        
+        if [ -f "build/bin/${{inputs.build-name}}.pkg" ]; then
+          echo "Notarizing installer"
+          xcrun notarytool submit build/bin/${{inputs.build-name}}.pkg --apple-id "${{ inputs.sign-macos-apple-id }}" --password "${{ inputs.sign-macos-app-specific-password }}" --team-id "${{ inputs.sign-macos-app-id }}" --wait
+          
+          echo "Stapling installer"
+          xcrun stapler staple build/bin/${{inputs.build-name}}.pkg
+        fi
     # Windows signing
     - name: Sign Windows binaries
       shell: powershell
