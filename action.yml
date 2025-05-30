@@ -259,7 +259,7 @@ runs:
         xcrun notarytool submit build/bin/${{inputs.build-name}}.app.zip \
           --apple-id "${{ inputs.sign-macos-apple-id }}" \
           --password "${{ inputs.sign-macos-app-specific-password }}" \
-          --team-id "${{ input.sign-macos-app-id }}" \
+          --team-id "${{ inputs.sign-macos-app-id }}" \
           --wait
     
     - name: Staple .app
@@ -279,7 +279,7 @@ runs:
         xcrun notarytool submit build/bin/${{inputs.build-name}}.pkg \
           --apple-id "${{ inputs.sign-macos-apple-id }}" \
           --password "${{ inputs.sign-macos-app-specific-password }}" \
-          --team-id "${{ input.sign-macos-app-id }}" \
+          --team-id "${{ inputs.sign-macos-app-id }}" \
           --wait
     
     - name: Staple .pkg
