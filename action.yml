@@ -250,24 +250,45 @@ runs:
       working-directory: ${{ inputs.app-working-directory }}
       run: |
         productbuild --component ${{ inputs.app-working-directory }}/build/bin/${{inputs.build-name}}.app /Applications ${{ inputs.app-working-directory }}/build/bin/${{inputs.build-name}}.pkg
-    - name: Notarize macOS app and installer
+    - name: Notarize .app.zip
       if: runner.os == 'macOS' && inputs.sign != 'false' && startsWith(github.ref, 'refs/tags/')
       shell: bash
       working-directory: ${{ inputs.app-working-directory }}
       run: |
-        echo "Notarizing app bundle"
-        xcrun notarytool submit build/bin/${{inputs.build-name}}.app.zip --apple-id "${{ inputs.sign-macos-apple-id }}" --password "${{ inputs.sign-macos-app-specific-password }}" --team-id "${{ inputs.sign-macos-app-id }}" --wait
-        
-        echo "Stapling app bundle"
+        echo "Notarizing .app.zip"
+        xcrun notarytool submit build/bin/${{inputs.build-name}}.app.zip \
+          --apple-id "${{ inputs.sign-macos-apple-id }}" \
+          --password "${{ inputs.sign-macos-app-specific-password }}" \
+          --team-id "${{ input.sign-macos-app-id }}" \
+          --wait
+    
+    - name: Staple .app
+      if: runner.os == 'macOS' && inputs.sign != 'false' && startsWith(github.ref, 'refs/tags/')
+      shell: bash
+      working-directory: ${{ inputs.app-working-directory }}
+      run: |
+        echo "Stapling .app"
         xcrun stapler staple build/bin/${{inputs.build-name}}.app
-        
-        if [ -f "build/bin/${{inputs.build-name}}.pkg" ]; then
-          echo "Notarizing installer"
-          xcrun notarytool submit build/bin/${{inputs.build-name}}.pkg --apple-id "${{ inputs.sign-macos-apple-id }}" --password "${{ inputs.sign-macos-app-specific-password }}" --team-id "${{ inputs.sign-macos-app-id }}" --wait
-          
-          echo "Stapling installer"
-          xcrun stapler staple build/bin/${{inputs.build-name}}.pkg
-        fi
+    
+    - name: Notarize .pkg
+      if: runner.os == 'macOS' && inputs.sign != 'false' && startsWith(github.ref, 'refs/tags/') && inputs.sign-macos-installer-id != ''
+      shell: bash
+      working-directory: ${{ inputs.app-working-directory }}
+      run: |
+        echo "Notarizing .pkg"
+        xcrun notarytool submit build/bin/${{inputs.build-name}}.pkg \
+          --apple-id "${{ inputs.sign-macos-apple-id }}" \
+          --password "${{ inputs.sign-macos-app-specific-password }}" \
+          --team-id "${{ input.sign-macos-app-id }}" \
+          --wait
+    
+    - name: Staple .pkg
+      if: runner.os == 'macOS' && inputs.sign != 'false' && startsWith(github.ref, 'refs/tags/') && inputs.sign-macos-installer-id != ''
+      shell: bash
+      working-directory: ${{ inputs.app-working-directory }}
+      run: |
+        echo "Stapling .pkg"
+        xcrun stapler staple build/bin/${{inputs.build-name}}.pkg
     # Windows signing
     - name: Sign Windows binaries
       shell: powershell
