@@ -174,17 +174,6 @@ runs:
       shell: bash
     - run: go version
       shell: bash
-    # (Optional) Setup and configure Deno
-    - name: Setup Deno
-      uses: denoland/setup-deno@v2
-      if: inputs.deno-build != ''
-      with:
-        deno-version: ${{inputs.deno-version}}
-    - name: Run Deno Command
-      if: inputs.deno-build != ''
-      shell: bash
-      working-directory: ${{inputs.deno-working-directory}}
-      run: ${{inputs.deno-build}}
     # install wails
     - name: Install Wails
       if: inputs.build == 'true' && inputs.wails-dev-build == 'false'
